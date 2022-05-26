@@ -72,6 +72,7 @@ parser.add_argument('--lr_dual', help='number of dual steps', type=float, defaul
 parser.add_argument('--seed', help='seed', type=int, default=1357)
 parser.add_argument('--cluster', help='How to cluster for diversity in primaldual', type = str, default='nocluster')
 parser.add_argument('--projname', help='Project name for wandb', type = str, default='AProjectHasNoName')
+parser.add_argument('--lambdaTestSize', help = 'Size in percentage of test set for lambda net', type = float, default = 0.11)
 parser.add_argument('--lamb', help='lambda', type=float, default=1)
 opts = parser.parse_args()
 #wandb.init(project=opts.projname, entity="elenter", name = opts.name)
@@ -95,6 +96,7 @@ args['lr_dual'] = opts.lr_dual
 args['nEpsilon'] = opts.epsilon
 args['nPrimal'] = opts.nPrimal
 args['cluster'] = opts.cluster
+args['lambdaTestSize'] = opts.lambdaTestSize
 args['seed'] = opts.seed
 args['nClasses'] = opts.nClasses
 args['nPat'] = opts.nPat
@@ -134,7 +136,7 @@ else:
 if type(X_tr[0]) is not np.ndarray:
     X_tr = X_tr.numpy()
 
-ally = ALLYSampling(X_tr, Y_tr, idxs_lb, net, handler, args, opts.cluster, opts.epsilon, opts.nPrimal)
+ally = ALLYSampling(X_tr, Y_tr, idxs_lb, net, handler, args, opts.cluster, opts.epsilon, opts.nPrimal, opts.lambda_test_size)
 
 print(DATA_NAME, flush=True)
 print(type(ally).__name__, flush=True)

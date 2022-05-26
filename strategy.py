@@ -77,7 +77,7 @@ class Strategy:
             optimizer.step()
 
             # Dual update
-            lambdas += self.lr_dual*(loss-self.epsilon)  #change to dual_optimizer.step() at some point
+            lambdas += self.lr_dual*(loss-self.epsilon)  #change to dual_optimizer.step()
             lambdas[lambdas < 0] = 0
             self.lambdas[idxs] = lambdas.detach().cpu()
         return lossCurrent/len(loader_tr), accFinal/len(loader_tr.dataset.X)
@@ -105,7 +105,6 @@ class Strategy:
         epochs_no_improve = 0
         early_stop = False
 
-        #print(f"patience {self.nPat}")
         while accCurrent < 0.99 and not early_stop:
             
             lossCurrent, accCurrent = self._train_ally(epoch, loader_tr, optimizer)
