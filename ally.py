@@ -79,7 +79,13 @@ class ALLYSampling(Strategy):
     def prepare_data_lambda(self, X, Y):
         X_embedding = self.get_embedding(X, Y).numpy()
         y_lambdas = self.lambdas
-        X_train, X_test, y_train, y_test = train_test_split(X_embedding, y_lambdas, test_size=self.lambda_test_size, random_state = self.seed)
+        if self.lambda_test_size > 0:
+            X_train, X_test, y_train, y_test = train_test_split(X_embedding, y_lambdas, test_size=self.lambda_test_size, random_state = self.seed)
+        else:
+            X_train = X_embedding
+            X_test = []
+            y_train = y_lambdas
+            y_test = []
         return X_train, X_test, y_train, y_test
 
     def _train_lambdanet(self, epoch, loader_tr, optimizer):

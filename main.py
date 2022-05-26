@@ -136,7 +136,7 @@ else:
 if type(X_tr[0]) is not np.ndarray:
     X_tr = X_tr.numpy()
 
-ally = ALLYSampling(X_tr, Y_tr, idxs_lb, net, handler, args, opts.cluster, opts.epsilon, opts.nPrimal, opts.lambda_test_size)
+ally = ALLYSampling(X_tr, Y_tr, idxs_lb, net, handler, args, opts.cluster, opts.epsilon, opts.nPrimal, opts.lambdaTestSize)
 
 print(DATA_NAME, flush=True)
 print(type(ally).__name__, flush=True)
