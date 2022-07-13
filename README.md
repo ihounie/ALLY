@@ -2,6 +2,7 @@
 
 Accompanying repo for the paper: A Lagrangian Duality Approach to Active Learning
 
+
 ```
 @misc{ALLY,
   doi = {10.48550/ARXIV.2202.04108},
@@ -11,5 +12,6 @@ Accompanying repo for the paper: A Lagrangian Duality Approach to Active Learnin
   year = {2022},
 }
 ```
+
 
 REPO UNDER CONSTRUCTION

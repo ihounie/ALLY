@@ -38,6 +38,7 @@ class ALLYSampling(Strategy):
         idxs_lb = np.arange(self.n_pool)[self.idxs_lb]
 
         # Prepare data
+        print("Generating Embdeddings...")
         X_train, X_test, y_train, y_test = self.prepare_data_lambda(self.X[idxs_lb], self.Y.numpy()[idxs_lb])
 
         # Train Lambdanet
@@ -45,9 +46,9 @@ class ALLYSampling(Strategy):
         self.train_test_lambdanet(X_train, X_test, y_train, y_test)
 
         # Predict on unlabeled samples
-        print("Generating Embdeddings...")
         X_embedding = self.get_embedding(self.X[idxs_unlabeled], self.Y.numpy()[idxs_unlabeled]).numpy()
         preds = self.predict_lambdas(X_embedding)
+        self.lambdas_pred = preds
         
         # Sort samples by lambda
         idxs_lambdas_descending = (-preds).argsort()
@@ -73,7 +74,8 @@ class ALLYSampling(Strategy):
         # No diversity
         else:
             chosen = idxs_lambdas_descending[:n]
-
+        
+        print("Done selecting new batch.")
         return idxs_unlabeled[chosen]
 
     def prepare_data_lambda(self, X, Y):
@@ -116,16 +118,16 @@ class ALLYSampling(Strategy):
         mseCurrent = 10.
         while (mseCurrent > mseThresh) and (epoch < 70): #default values for SVHN
             mseCurrent = self._train_lambdanet(epoch, loader_tr, optimizer)
-            print(f"{epoch} lambda training mse:  {mseCurrent:.3f}", flush=True)
+            print(f"{epoch} Lambda training mse:  {mseCurrent:.3f}", flush=True)
             epoch += 1
                
         mseFinal = 0.
 
-        #Test
+        # Test L
         if self.lambda_test_size > 0:
             P = self.predict_lambdas(X_test, y_test)
             mseTest = F.mse_loss(P, torch.tensor(y_test))           
-            print(f"-----> lambda test mse: {mseTest.item():.2f}\n", flush=True)
+            print(f"-----> Lambda test mse: {mseTest.item():.2f}\n", flush=True)
         return None
 	
 
