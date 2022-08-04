@@ -73,7 +73,7 @@ parser.add_argument('--seed', help='seed', type=int, default=1357)
 parser.add_argument('--cluster', help='How to cluster for diversity in primaldual', type = str, default='nocluster')
 parser.add_argument('--projname', help='Project name for wandb', type = str, default='AProjectHasNoName')
 parser.add_argument('--lambdaTestSize', help = 'Size in percentage of test set for lambda net', type = float, default = 0.11)
-parser.add_argument('--lamb', help='lambda', type=float, default=1)
+#parser.add_argument('--lamb', help='lambda', type=float, default=1)
 opts = parser.parse_args()
 #wandb.init(project=opts.projname, entity="elenter", name = opts.name)
 

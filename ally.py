@@ -21,7 +21,6 @@ class ALLYSampling(Strategy):
     def __init__(self, X, Y, idxs_lb, net, handler, args, cluster = 'kmeans', epsilon = 0.2, nPrimal = 1, lambda_test_size = 0.1, nPat = 6):
         super(ALLYSampling, self).__init__(X, Y, idxs_lb, net, handler, args)
         
-        #self.lambdas = np.ones(sum(self.idxs_lb))
         self.lambdas = np.zeros(sum(self.idxs_lb))
  
         self.seed = args["seed"]
@@ -90,7 +89,7 @@ class ALLYSampling(Strategy):
             y_test = []
         return X_train, X_test, y_train, y_test
 
-    def _train_lambdanet(self, epoch, loader_tr, optimizer):
+    def _train_lambdanet(self, epoch, loader_tr, optimizer, scheduler):
         self.reg.train()
         mseFinal = 0.
 
@@ -103,21 +102,23 @@ class ALLYSampling(Strategy):
 
             mseFinal += loss.item()            
             optimizer.step()
+        scheduler.step()
+        
         return mseFinal/len(loader_tr)
 
     def train_test_lambdanet(self, X_train, X_test, y_train, y_test):
 
-        optimizer = optim.Adam(self.reg.parameters(), lr = self.lr_dual, weight_decay=0)
-
+        optimizer = optim.Adam(self.reg.parameters(), lr = 0.001, weight_decay=5e-2)
+        scheduler = optim.lr_scheduler.StepLR(optimizer, step_size = 3, gamma=0.95)
         loader_tr = DataLoader(lambdaset(X_train, X_test, y_train, y_test, train = True), batch_size = 64, shuffle = False, drop_last=True)
 
-        mseThresh = 4e-2 #Add as argument
+        mseThresh = 1e-3 #Add as argument
         #Train
         self.reg.train()
         epoch = 1
         mseCurrent = 10.
-        while (mseCurrent > mseThresh) and (epoch < 70): #default values for SVHN
-            mseCurrent = self._train_lambdanet(epoch, loader_tr, optimizer)
+        while (mseCurrent > mseThresh) and (epoch < 200): #default values for SVHN
+            mseCurrent = self._train_lambdanet(epoch, loader_tr, optimizer, scheduler)
             print(f"{epoch} Lambda training mse:  {mseCurrent:.3f}", flush=True)
             epoch += 1
                

@@ -10,10 +10,16 @@ class lambdanet(nn.Module):
     def __init__(self, input_dim):
         super(lambdanet, self).__init__()
         self.layers = nn.Sequential(
-            nn.Linear(input_dim, 64),
+            nn.Linear(input_dim, 128),
+            nn.BatchNorm1d(128),
+            nn.ReLU(inplace=True),
+            #nn.Linear(128, 64),
+            #nn.BatchNorm1d(64),
+            #nn.ReLU(inplace=True),
+            #nn.Dropout(p=0.3),
+            nn.Linear(128, 64),
             nn.BatchNorm1d(64),
             nn.ReLU(inplace=True),
-            nn.Dropout(p=0.3),
             nn.Linear(64, 32),
             nn.BatchNorm1d(32),
             nn.ReLU(inplace=True),
@@ -21,7 +27,7 @@ class lambdanet(nn.Module):
             nn.Linear(32, 16),
             nn.BatchNorm1d(16),
             nn.ReLU(inplace=True),
-            nn.Dropout(p=0.25),
+            #nn.Dropout(p=0.25),
             nn.Linear(16, 1),
             nn.ReLU(inplace=True),
         )
