@@ -207,7 +207,7 @@ class ALLYSampling(Strategy):
         epochs_no_improve = 0
         early_stop = False
 
-        slr = optim.lr_scheduler.StepLR(optimizer, step_size = 2, gamma=0.95) #lr sch for lagrangian
+        slr = optim.lr_scheduler.StepLR(optimizer, step_size = 1, gamma=0.95) #lr sch for lagrangian
 
         while accCurrent < 0.99 and not early_stop:
             

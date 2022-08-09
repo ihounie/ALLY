@@ -58,7 +58,7 @@ class Strategy:
             loss.backward()
 
             # clamp gradients, just in case
-            for p in filter(lambda p: p.grad is not None, self.clf.parameters()): p.grad.data.clamp_(min=-.1, max=.1)
+            for p in filter(lambda p: p.grad is not None, self.clf.parameters()): p.grad.data.clamp_(min=-.15, max=.15)
             optimizer.step()
 
         return loss.item(), accFinal / len(loader_tr.dataset.X)
