@@ -1,5 +1,4 @@
-# ALLY - A Lagrangian Duality Approach to Active Learning.
-
+# ALLY
 Accompanying repo for the paper: A Lagrangian Duality Approach to Active Learning.
 
 
