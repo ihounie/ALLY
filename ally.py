@@ -18,7 +18,7 @@ from scipy import stats
 from lambdautils import lambdanet, lambdaset
 
 class ALLYSampling(Strategy):
-    def __init__(self, X, Y, idxs_lb, net, handler, args, cluster = 'kmeans', epsilon = 0.2, nPrimal = 1, lambda_test_size = 0.1, nPat = 6):
+    def __init__(self, X, Y, idxs_lb, net, handler, args, epsilon = 0.2, cluster = 'kmeans', lr_dual = 0.05, nPrimal = 1, lambda_test_size = 0, nPat = 3):
         super(ALLYSampling, self).__init__(X, Y, idxs_lb, net, handler, args)
         
         self.lambdas = np.zeros(sum(self.idxs_lb))
@@ -27,10 +27,11 @@ class ALLYSampling(Strategy):
         self.nClasses = args["nClasses"]
         self.nPat = nPat
         self.epsilon = epsilon
-        self.lr_dual = args["lr_dual"]
+        self.lr_dual = lr_dual
         self.cluster = cluster
         self.nPrimal = nPrimal # Not used in minimal version with alternate primaldual (nPrimal = 1)
         self.lambda_test_size = lambda_test_size
+        self.alg = "ALLY"
 
     def query(self, n):
         idxs_unlabeled = np.arange(self.n_pool)[~self.idxs_lb]
@@ -108,8 +109,9 @@ class ALLYSampling(Strategy):
 
     def train_test_lambdanet(self, X_train, X_test, y_train, y_test):
 
-        optimizer = optim.Adam(self.reg.parameters(), lr = 0.001, weight_decay=5e-2)
+        optimizer = optim.Adam(self.reg.parameters(), lr = 0.0025, weight_decay=1e-2)
         scheduler = optim.lr_scheduler.StepLR(optimizer, step_size = 3, gamma=0.95)
+
         loader_tr = DataLoader(lambdaset(X_train, X_test, y_train, y_test, train = True), batch_size = 64, shuffle = False, drop_last=True)
 
         mseThresh = 1e-3 #Add as argument
@@ -117,7 +119,7 @@ class ALLYSampling(Strategy):
         self.reg.train()
         epoch = 1
         mseCurrent = 10.
-        while (mseCurrent > mseThresh) and (epoch < 200): #default values for SVHN
+        while (mseCurrent > mseThresh) and (epoch < 150): #default values for SVHN
             mseCurrent = self._train_lambdanet(epoch, loader_tr, optimizer, scheduler)
             print(f"{epoch} Lambda training mse:  {mseCurrent:.3f}", flush=True)
             epoch += 1
@@ -146,3 +148,92 @@ class ALLYSampling(Strategy):
                 out = self.reg(x)
                 P[idxs] = out.squeeze().data.cpu()
         return P
+
+    def _PDCL(self, epoch, loader_tr, optimizer):
+        self.clf.train()
+        accFinal = 0.
+        lossCurrent = 0.
+
+        for batch_idx, (x, y, idxs) in enumerate(loader_tr):
+            
+            # Snapshot of current dual variables
+            lambdas = self.lambdas[idxs]
+            lambdas = torch.tensor(lambdas, requires_grad = False).cuda()
+
+            #Primal Update (assuming nPrimal=1 and \ell = \ell')
+            x, y = Variable(x.cuda()), Variable(y.cuda())
+            optimizer.zero_grad()
+            out, e1 = self.clf(x)
+
+            # Compute Lagrangian
+            loss = F.cross_entropy(out, y, reduction = 'none')
+            lossCurrent += torch.mean(loss).item()
+            accFinal += torch.sum((torch.max(out,1)[1] == y).float()).data.item()
+            lagrangian = torch.mean(loss*(1+lambdas)-lambdas*self.epsilon)
+            
+            # Step to minimize Lagrangian
+            lagrangian.backward()
+            for p in filter(lambda p: p.grad is not None, self.clf.parameters()): p.grad.data.clamp_(min=-.15, max=.15)
+            
+            # Update params
+            optimizer.step()
+
+            # Compute Slack and perform Dual Update 
+            lambdas += self.lr_dual*(loss-self.epsilon) 
+            lambdas[lambdas < 0] = 0
+            self.lambdas[idxs] = lambdas.detach().cpu()
+
+        return lossCurrent/len(loader_tr), accFinal/len(loader_tr.dataset.X)
+
+    def train(self):
+        def weight_reset(m):
+            if isinstance(m, nn.Conv2d) or isinstance(m, nn.Linear):
+                m.reset_parameters()
+
+        self.clf =  self.net.apply(weight_reset).cuda()
+        print(f"Learning Rate {self.args['lr']}")
+        optimizer = optim.Adam(self.clf.parameters(), lr = self.args['lr'], weight_decay=0)
+
+        loader_tr = DataLoader(self.handler(self.X[self.idxs_train], torch.Tensor(self.Y.numpy()[self.idxs_train]).long(), transform=self.args['transform']), shuffle=True, **self.args['loader_tr_args'])
+
+        # Reset lambdas at beginning of each round
+        self.lambdas = np.zeros(len(self.idxs_train))
+
+        epoch = 1
+        accCurrent = 0.
+        accBest = 0.
+        best_model = None
+
+        epochs_no_improve = 0
+        early_stop = False
+
+        slr = optim.lr_scheduler.StepLR(optimizer, step_size = 2, gamma=0.95) #lr sch for lagrangian
+
+        while accCurrent < 0.99 and not early_stop:
+            
+            lossCurrent, accCurrent = self._PDCL(epoch, loader_tr, optimizer)
+
+            if (epoch % 50 == 0) and (accCurrent < 0.2): # reset if not converging
+                self.clf = self.net.apply(weight_reset)
+                optimizer = optim.Adam(self.clf.parameters(), lr = self.args['lr'], weight_decay=0)
+            
+            val_acc = self.validate()
+
+            if val_acc >= accBest:
+                accBest = val_acc
+                epochs_no_improve = 0
+                best_model = deepcopy(self.clf)
+            else:
+                epochs_no_improve += 1
+            
+            if epochs_no_improve > self.nPat:
+                early_stop = True
+
+            slr.step()
+            print(f'lr from sch : {slr.get_lr()}')
+            print(f"lr from sch : {slr.optimizer.param_groups[0]['lr']}  ")
+
+            print(f"{epoch} training accuracy: {accCurrent:.2f} \tTraining loss: {lossCurrent:.2f} \tValidation acc: {val_acc:.2f}", flush=True)
+            epoch += 1   
+
+        self.clf = best_model

@@ -15,7 +15,7 @@ import pdb
 from strategy import Strategy
 import random
 from ally import ALLYSampling
-
+from baselines import BadgeSampling, RandomSampling
 
 def seed_everything(seed: int):    
     random.seed(seed)
@@ -31,26 +31,26 @@ args_pool = {
             'MNIST':
                 {
                  'transform': transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))]),
-                 'loader_tr_args':{'batch_size': 64, 'num_workers': 4},
-                 'loader_te_args':{'batch_size': 1000, 'num_workers': 4}
+                 'loader_tr_args':{'batch_size': 64, 'num_workers': 3},
+                 'loader_te_args':{'batch_size': 1000, 'num_workers': 3}
                 },
             'SVHN':
                 {
                  'transform': transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.4377, 0.4438, 0.4728), (0.1980, 0.2010, 0.1970))]),
-                 'loader_tr_args':{'batch_size': 64, 'num_workers': 4},
-                 'loader_te_args':{'batch_size': 1000, 'num_workers': 4}
+                 'loader_tr_args':{'batch_size': 64, 'num_workers': 3},
+                 'loader_te_args':{'batch_size': 1000, 'num_workers': 3}
                 },
             'CIFAR10':
                 {
                  'transform': transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2470, 0.2435, 0.2616))]),
-                 'loader_tr_args':{'batch_size': 64, 'num_workers': 4},
-                 'loader_te_args':{'batch_size': 1000, 'num_workers': 4}
+                 'loader_tr_args':{'batch_size': 64, 'num_workers': 3},
+                 'loader_te_args':{'batch_size': 1000, 'num_workers': 3}
                 },
             'STL10':
                 {
                  'transform': transforms.Compose([transforms.ToTensor()]), #  if unnormalized add: transforms.Normalize(mean=[114.06, 112.23, 103.62], std=[66.40, 65.411, 68.98])]),
-                 'loader_tr_args':{'batch_size': 64, 'num_workers': 4},
-                 'loader_te_args':{'batch_size': 1000, 'num_workers': 4}
+                 'loader_tr_args':{'batch_size': 64, 'num_workers': 3},
+                 'loader_te_args':{'batch_size': 1000, 'num_workers': 3}
                 }
             }
 
@@ -61,21 +61,20 @@ parser.add_argument('--lr', help='learning rate', type=float, default=1e-3)
 parser.add_argument('--model', help='model - resnet, vgg, or mlp', type=str, default='mlp')
 parser.add_argument('--path', help='data path', type=str, default='data')
 parser.add_argument('--data', help='dataset (non-openML)', type=str, default='')
-parser.add_argument('--nQuery', help='number of points to query in a batch', type=int, default=100)
+parser.add_argument('--nQuery', help='number of points to query in a batch', type=int, default=200)
 parser.add_argument('--nStart', help='number of points to start', type=int, default=100)
 parser.add_argument('--nEnd', help = 'total number of points to query', type=int, default=50000)
 parser.add_argument('--nEmb', help='number of embedding dims (mlp)', type=int, default=256)
-parser.add_argument('--epsilon', help='constant tightness', type=float, default=0.1)
+parser.add_argument('--epsilon', help='constant tightness', type=float, default=0.2)
 parser.add_argument('--nPrimal', help='number of primal steps', type=int, default=1)
-parser.add_argument('--nPat', help = 'es epochs before halt cond', type = int, default = 0)
+parser.add_argument('--nPat', help = 'es epochs before halt cond', type = int, default = 2)
 parser.add_argument('--lr_dual', help='number of dual steps', type=float, default=0.05)
 parser.add_argument('--seed', help='seed', type=int, default=1357)
 parser.add_argument('--cluster', help='How to cluster for diversity in primaldual', type = str, default='nocluster')
 parser.add_argument('--projname', help='Project name for wandb', type = str, default='AProjectHasNoName')
-parser.add_argument('--lambdaTestSize', help = 'Size in percentage of test set for lambda net', type = float, default = 0.11)
-#parser.add_argument('--lamb', help='lambda', type=float, default=1)
+parser.add_argument('--lambdaTestSize', help = 'Size in percentage of test set for lambda net', type = float, default = 0)
+parser.add_argument('--name', help='name for wandb', type=str, default="a run has no name")
 opts = parser.parse_args()
-#wandb.init(project=opts.projname, entity="elenter", name = opts.name)
 
 seed_everything(opts.seed)
 
@@ -92,15 +91,11 @@ args_pool['CIFAR10']['transformTest'] = args_pool['CIFAR10']['transform']
 args_pool['STL10']['transformTest'] = args_pool['STL10']['transform']
 args = args_pool[DATA_NAME]
 args['lr'] = opts.lr
-args['lr_dual'] = opts.lr_dual
-args['nEpsilon'] = opts.epsilon
 args['nPrimal'] = opts.nPrimal
-args['cluster'] = opts.cluster
-args['lambdaTestSize'] = opts.lambdaTestSize
 args['seed'] = opts.seed
 args['nClasses'] = opts.nClasses
 args['nPat'] = opts.nPat
-args["alg"] = opts.alg
+args['alg'] = opts.alg
 
 
 if not os.path.exists(opts.path):
@@ -136,15 +131,20 @@ else:
 if type(X_tr[0]) is not np.ndarray:
     X_tr = X_tr.numpy()
 
-ally = ALLYSampling(X_tr, Y_tr, idxs_lb, net, handler, args, opts.cluster, opts.epsilon, opts.nPrimal, opts.lambdaTestSize)
+if args["alg"] == "ALLY":
+    alg = ALLYSampling(X_tr, Y_tr, idxs_lb, net, handler, args, opts.epsilon, opts.cluster, opts.lr_dual, opts.nPrimal, opts.lambdaTestSize)                                                            
+elif args["alg"] == "random":
+    alg = RandomSampling(X_tr, Y_tr, idxs_lb, net, handler, args)
+elif args["alg"] == "badge":
+    alg = BadgeSampling(X_tr, Y_tr, idxs_lb, net, handler, args)
 
 print(DATA_NAME, flush=True)
-print(type(ally).__name__, flush=True)
+print(type(alg).__name__, flush=True)
 
 # Initialize active learning strategy
-ally.train()
-P = ally.predict(X_te, Y_te)
-probs = ally.predict_prob(X_te, Y_te)
+alg.train()
+P = alg.predict(X_te, Y_te)
+probs = alg.predict_prob(X_te, Y_te)
 acc = np.zeros(NUM_ROUND+1)
 loss = np.zeros(NUM_ROUND+1)
 acc[0] = 1.0 * (Y_te == P).sum().item() / len(Y_te)
@@ -159,24 +159,27 @@ for rd in range(1, NUM_ROUND+1):
     gc.collect()
 
     # Query
-    output = ally.query(NUM_QUERY)
+    output = alg.query(NUM_QUERY)
     q_idxs = output
     sampled += list(q_idxs)
     idxs_lb[q_idxs] = True
 
     # Update
-    ally.update(idxs_lb)
-    ally.train()
+    alg.update(idxs_lb)
+    alg.train()
 
     # Evaluate round accuracy
-    P = ally.predict(X_te, Y_te)
-    probs = ally.predict_prob(X_te, Y_te)
+    P = alg.predict(X_te, Y_te)
+    probs = alg.predict_prob(X_te, Y_te)
     acc[rd] = 1.0 * (Y_te == P).sum().item() / len(Y_te)
     loss[rd] = F.cross_entropy(probs, Y_te).item()
     print(f"\n\nNumber of samples = {sum(idxs_lb)} ------> testing accuracy: {acc[rd]} , loss: {loss[rd]} \n\n", flush=True)
-    if sum(~ally.idxs_lb) < opts.nQuery: 
+    nsamples = NUM_INIT_LB + rd*NUM_QUERY
+
+    if sum(~alg.idxs_lb) < opts.nQuery: 
         sys.exit('Too few remaining points to query')
 
 print(f"\nAccuracy evolution: {acc}")
 print(f"\nCross Entropy evolution: {loss}")
+
 

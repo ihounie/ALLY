@@ -18,9 +18,9 @@ class Strategy:
         self.idxs_lb = idxs_lb
         self.net = net
         self.handler = handler
-        self.nPat = args['nPat']
         self.args = args
         self.n_pool = len(Y)
+        self.nPat = args["nPat"]
         use_cuda = torch.cuda.is_available()
 
         #Create train and validation idxs
@@ -46,41 +46,22 @@ class Strategy:
         self.idxs_train = np.arange(self.n_pool)[self.idxs_lb]
         self.idxs_train = [i for i in self.idxs_train if i not in self.idxs_val]
 
-    def _train_ally(self, epoch, loader_tr, optimizer):
+    def _train(self, epoch, loader_tr, optimizer):
         self.clf.train()
         accFinal = 0.
-        lossCurrent = 0.
         for batch_idx, (x, y, idxs) in enumerate(loader_tr):
-            
-            # Snapshot of current dual variables
-            lambdas = self.lambdas[idxs]
-            lambdas = torch.tensor(lambdas, requires_grad = False).cuda()
-
-            #Primal Update (assuming nPrimal=1 and \ell = \ell')
-
-            # Forward pass
             x, y = Variable(x.cuda()), Variable(y.cuda())
             optimizer.zero_grad()
             out, e1 = self.clf(x)
-
-            # Compute Loss and Lagrangian
-            loss = F.cross_entropy(out, y, reduction = 'none')
-            lossCurrent += torch.mean(loss).item()
+            loss = F.cross_entropy(out, y)
             accFinal += torch.sum((torch.max(out,1)[1] == y).float()).data.item()
-            lagrangian = torch.mean(loss*(1+lambdas)-lambdas*self.epsilon)
-            
-            # Compute and clamp gradients
-            lagrangian.backward()
-            for p in filter(lambda p: p.grad is not None, self.clf.parameters()): p.grad.data.clamp_(min=-.15, max=.15)
-            
-            # Update params
+            loss.backward()
+
+            # clamp gradients, just in case
+            for p in filter(lambda p: p.grad is not None, self.clf.parameters()): p.grad.data.clamp_(min=-.1, max=.1)
             optimizer.step()
 
-            # Dual update
-            lambdas += self.lr_dual*(loss-self.epsilon)  #change to dual_optimizer.step()
-            lambdas[lambdas < 0] = 0
-            self.lambdas[idxs] = lambdas.detach().cpu()
-        return lossCurrent/len(loader_tr), accFinal/len(loader_tr.dataset.X)
+        return loss.item(), accFinal / len(loader_tr.dataset.X)
 
     def train(self):
         def weight_reset(m):
@@ -90,11 +71,9 @@ class Strategy:
         self.clf =  self.net.apply(weight_reset).cuda()
         print(f"Learning Rate {self.args['lr']}")
         optimizer = optim.Adam(self.clf.parameters(), lr = self.args['lr'], weight_decay=0)
-
         loader_tr = DataLoader(self.handler(self.X[self.idxs_train], torch.Tensor(self.Y.numpy()[self.idxs_train]).long(), transform=self.args['transform']), shuffle=True, **self.args['loader_tr_args'])
 
         # Reset lambdas at beginning of each round
-        #self.lambdas = np.ones(len(self.idxs_train))
         self.lambdas = np.zeros(len(self.idxs_train))
 
         epoch = 1
@@ -104,10 +83,13 @@ class Strategy:
 
         epochs_no_improve = 0
         early_stop = False
-
+  
         while accCurrent < 0.99 and not early_stop:
             
-            lossCurrent, accCurrent = self._train_ally(epoch, loader_tr, optimizer)
+            if self.alg == "ALLY":
+                lossCurrent, accCurrent = self._PDCL(epoch, loader_tr, optimizer)
+            else:
+                lossCurrent, accCurrent = self._train(epoch, loader_tr, optimizer)
 
             if (epoch % 50 == 0) and (accCurrent < 0.2): # reset if not converging
                 self.clf = self.net.apply(weight_reset)
@@ -186,3 +168,29 @@ class Strategy:
                 embedding[idxs] = e1.data.cpu()
         
         return embedding
+    
+    # gradient embedding for badge (assumes cross-entropy loss)
+    def get_grad_embedding(self, X, Y, model=[]):
+        if type(model) == list:
+            model = self.clf
+        
+        embDim = model.get_embedding_dim()
+        model.eval()
+        nLab = len(np.unique(Y))
+        embedding = np.zeros([len(Y), embDim * nLab])
+        loader_te = DataLoader(self.handler(X, Y, transform=self.args['transformTest']),
+                            shuffle=False, **self.args['loader_te_args'])
+        with torch.no_grad():
+            for x, y, idxs in loader_te:
+                x, y = Variable(x.cuda()), Variable(y.cuda())
+                cout, out = model(x)
+                out = out.data.cpu().numpy()
+                batchProbs = F.softmax(cout, dim=1).data.cpu().numpy()
+                maxInds = np.argmax(batchProbs,1)
+                for j in range(len(y)):
+                    for c in range(nLab):
+                        if c == maxInds[j]:
+                            embedding[idxs[j]][embDim * c : embDim * (c+1)] = deepcopy(out[j]) * (1 - batchProbs[j][c])
+                        else:
+                            embedding[idxs[j]][embDim * c : embDim * (c+1)] = deepcopy(out[j]) * (-1 * batchProbs[j][c])
+            return torch.Tensor(embedding)
