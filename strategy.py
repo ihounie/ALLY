@@ -11,7 +11,7 @@ from copy import deepcopy
 import pdb
 from torch.utils.data.dataset import TensorDataset
 
-class Strategy:
+class Strategy: 
     def __init__(self, X, Y, idxs_lb, net, handler, args):
         self.X = X
         self.Y = Y

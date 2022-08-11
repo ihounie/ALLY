@@ -16,9 +16,8 @@ from strategy import Strategy
 import random
 from ally import ALLYSampling
 from baselines import BadgeSampling, RandomSampling
-import wandb
 
-def seed_everything(seed: int):    
+def seed_everything(seed: int):
     random.seed(seed)
     os.environ['PYTHONHASHSEED'] = str(seed)
     np.random.seed(seed)
