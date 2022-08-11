@@ -16,6 +16,7 @@ from strategy import Strategy
 import random
 from ally import ALLYSampling
 from baselines import BadgeSampling, RandomSampling
+import wandb
 
 def seed_everything(seed: int):    
     random.seed(seed)
@@ -58,16 +59,16 @@ args_pool = {
 parser = argparse.ArgumentParser()
 parser.add_argument('--alg', help='acquisition algorithm', type=str, default='rand')
 parser.add_argument('--lr', help='learning rate', type=float, default=1e-3)
-parser.add_argument('--model', help='model - resnet, vgg, or mlp', type=str, default='mlp')
-parser.add_argument('--path', help='data path', type=str, default='data')
+parser.add_argument('--model', help='model - resnet, vgg, or mlp', type=str, default='resnet')
+parser.add_argument('--path', help='data path', type=str, default='./data')
 parser.add_argument('--data', help='dataset (non-openML)', type=str, default='')
 parser.add_argument('--nQuery', help='number of points to query in a batch', type=int, default=200)
 parser.add_argument('--nStart', help='number of points to start', type=int, default=100)
-parser.add_argument('--nEnd', help = 'total number of points to query', type=int, default=50000)
-parser.add_argument('--nEmb', help='number of embedding dims (mlp)', type=int, default=256)
+parser.add_argument('--nEnd', help = 'total number of points to query', type=int, default=10000)
+parser.add_argument('--nEmb', help='number of embedding dims (mlp)', type=int, default=128)
 parser.add_argument('--epsilon', help='constant tightness', type=float, default=0.2)
 parser.add_argument('--nPrimal', help='number of primal steps', type=int, default=1)
-parser.add_argument('--nPat', help = 'es epochs before halt cond', type = int, default = 2)
+parser.add_argument('--nPat', help = 'es epochs before halt cond', type = int, default = 1)
 parser.add_argument('--lr_dual', help='number of dual steps', type=float, default=0.05)
 parser.add_argument('--seed', help='seed', type=int, default=1357)
 parser.add_argument('--cluster', help='How to cluster for diversity in primaldual', type = str, default='nocluster')
@@ -77,6 +78,7 @@ parser.add_argument('--name', help='name for wandb', type=str, default="a run ha
 opts = parser.parse_args()
 
 seed_everything(opts.seed)
+
 
 # parameters
 NUM_INIT_LB = opts.nStart
@@ -181,5 +183,4 @@ for rd in range(1, NUM_ROUND+1):
 
 print(f"\nAccuracy evolution: {acc}")
 print(f"\nCross Entropy evolution: {loss}")
-
 

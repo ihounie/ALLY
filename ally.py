@@ -18,7 +18,7 @@ from scipy import stats
 from lambdautils import lambdanet, lambdaset
 
 class ALLYSampling(Strategy):
-    def __init__(self, X, Y, idxs_lb, net, handler, args, epsilon = 0.2, cluster = 'kmeans', lr_dual = 0.05, nPrimal = 1, lambda_test_size = 0, nPat = 3):
+    def __init__(self, X, Y, idxs_lb, net, handler, args, epsilon = 0.2, cluster = 'kmeans', lr_dual = 0.05, nPrimal = 1, lambda_test_size = 0, nPat = 2):
         super(ALLYSampling, self).__init__(X, Y, idxs_lb, net, handler, args)
         
         self.lambdas = np.zeros(sum(self.idxs_lb))
@@ -119,14 +119,16 @@ class ALLYSampling(Strategy):
         self.reg.train()
         epoch = 1
         mseCurrent = 10.
-        while (mseCurrent > mseThresh) and (epoch < 150): #default values for SVHN
+        print_every = 10
+        while (mseCurrent > mseThresh) and (epoch < 150): #default values for STL
             mseCurrent = self._train_lambdanet(epoch, loader_tr, optimizer, scheduler)
-            print(f"{epoch} Lambda training mse:  {mseCurrent:.3f}", flush=True)
+            if epoch%print_every==0:
+                print(f"{epoch} Lambda training mse:  {mseCurrent:.3f}", flush=True)
             epoch += 1
                
         mseFinal = 0.
-
-        # Test L
+  
+        # Test L if needed
         if self.lambda_test_size > 0:
             P = self.predict_lambdas(X_test, y_test)
             mseTest = F.mse_loss(P, torch.tensor(y_test))           
@@ -160,7 +162,7 @@ class ALLYSampling(Strategy):
             lambdas = self.lambdas[idxs]
             lambdas = torch.tensor(lambdas, requires_grad = False).cuda()
 
-            #Primal Update (assuming nPrimal=1 and \ell = \ell')
+            # Primal Update (assuming nPrimal=1 and \ell = \ell')
             x, y = Variable(x.cuda()), Variable(y.cuda())
             optimizer.zero_grad()
             out, e1 = self.clf(x)
@@ -191,7 +193,6 @@ class ALLYSampling(Strategy):
                 m.reset_parameters()
 
         self.clf =  self.net.apply(weight_reset).cuda()
-        print(f"Learning Rate {self.args['lr']}")
         optimizer = optim.Adam(self.clf.parameters(), lr = self.args['lr'], weight_decay=0)
 
         loader_tr = DataLoader(self.handler(self.X[self.idxs_train], torch.Tensor(self.Y.numpy()[self.idxs_train]).long(), transform=self.args['transform']), shuffle=True, **self.args['loader_tr_args'])
@@ -230,9 +231,6 @@ class ALLYSampling(Strategy):
                 early_stop = True
 
             slr.step()
-            print(f'lr from sch : {slr.get_lr()}')
-            print(f"lr from sch : {slr.optimizer.param_groups[0]['lr']}  ")
-
             print(f"{epoch} training accuracy: {accCurrent:.2f} \tTraining loss: {lossCurrent:.2f} \tValidation acc: {val_acc:.2f}", flush=True)
             epoch += 1   
 

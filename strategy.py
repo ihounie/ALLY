@@ -69,7 +69,6 @@ class Strategy:
                 m.reset_parameters()
 
         self.clf =  self.net.apply(weight_reset).cuda()
-        print(f"Learning Rate {self.args['lr']}")
         optimizer = optim.Adam(self.clf.parameters(), lr = self.args['lr'], weight_decay=0)
         loader_tr = DataLoader(self.handler(self.X[self.idxs_train], torch.Tensor(self.Y.numpy()[self.idxs_train]).long(), transform=self.args['transform']), shuffle=True, **self.args['loader_tr_args'])
 
@@ -83,11 +82,11 @@ class Strategy:
 
         epochs_no_improve = 0
         early_stop = False
-  
+
         while accCurrent < 0.99 and not early_stop:
             
-            if self.alg == "ALLY":
-                lossCurrent, accCurrent = self._PDCL(epoch, loader_tr, optimizer)
+            if self.alg == "ALLY": # to overwrite train
+                lossCurrent, accCurrent = self._PDCL(epoch, loader_tr, optimizer) 
             else:
                 lossCurrent, accCurrent = self._train(epoch, loader_tr, optimizer)
 
