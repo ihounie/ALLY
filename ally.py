@@ -6,7 +6,7 @@ from torch import nn
 import sys
 import torch
 import torch.nn.functional as F
-import torch.optim as optim 
+import torch.optim as optim
 from torch.autograd import Variable
 from torch.utils.data import DataLoader, Dataset
 from copy import deepcopy
@@ -100,8 +100,7 @@ class ALLYSampling(Strategy):
             out = self.reg(x)
             loss = F.mse_loss(out.squeeze(), y)
             loss.backward()
-
-            mseFinal += loss.item()            
+            mseFinal += loss.item()
             optimizer.step()
         scheduler.step()
         
@@ -110,7 +109,7 @@ class ALLYSampling(Strategy):
     def train_test_lambdanet(self, X_train, X_test, y_train, y_test):
 
         optimizer = optim.Adam(self.reg.parameters(), lr = 0.0025, weight_decay=1e-2)
-        scheduler = optim.lr_scheduler.StepLR(optimizer, step_size = 3, gamma=0.95)
+        scheduler = optim.lr_scheduler.StepLR(optimizer, step_size = 1, gamma=0.95)
 
         loader_tr = DataLoader(lambdaset(X_train, X_test, y_train, y_test, train = True), batch_size = 64, shuffle = False, drop_last=True)
 
@@ -127,7 +126,7 @@ class ALLYSampling(Strategy):
             epoch += 1
                
         mseFinal = 0.
-  
+
         # Test L if needed
         if self.lambda_test_size > 0:
             P = self.predict_lambdas(X_test, y_test)
@@ -211,7 +210,6 @@ class ALLYSampling(Strategy):
         slr = optim.lr_scheduler.StepLR(optimizer, step_size = 1, gamma=0.95) #lr sch for lagrangian
 
         while accCurrent < 0.99 and not early_stop:
-            
             lossCurrent, accCurrent = self._PDCL(epoch, loader_tr, optimizer)
 
             if (epoch % 50 == 0) and (accCurrent < 0.2): # reset if not converging

@@ -17,14 +17,15 @@ import random
 from ally import ALLYSampling
 from baselines import BadgeSampling, RandomSampling
 
-def seed_everything(seed: int):
+def seed_everything(seed: int):    
     random.seed(seed)
     os.environ['PYTHONHASHSEED'] = str(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
     torch.cuda.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)  
     torch.backends.cudnn.deterministic = True
-    torch.backends.cudnn.benchmark = True
+    torch.backends.cudnn.benchmark = False
 
 # data defaults
 args_pool = {
@@ -67,15 +68,15 @@ parser.add_argument('--nEnd', help = 'total number of points to query', type=int
 parser.add_argument('--nEmb', help='number of embedding dims (mlp)', type=int, default=128)
 parser.add_argument('--epsilon', help='constant tightness', type=float, default=0.2)
 parser.add_argument('--nPrimal', help='number of primal steps', type=int, default=1)
-parser.add_argument('--nPat', help = 'es epochs before halt cond', type = int, default = 1)
+parser.add_argument('--nPat', help = 'es epochs before halt cond', type = int, default = 2)
 parser.add_argument('--lr_dual', help='number of dual steps', type=float, default=0.05)
 parser.add_argument('--seed', help='seed', type=int, default=1357)
 parser.add_argument('--cluster', help='How to cluster for diversity in primaldual', type = str, default='nocluster')
-parser.add_argument('--projname', help='Project name for wandb', type = str, default='AProjectHasNoName')
 parser.add_argument('--lambdaTestSize', help = 'Size in percentage of test set for lambda net', type = float, default = 0)
 parser.add_argument('--name', help='name for wandb', type=str, default="a run has no name")
 opts = parser.parse_args()
 
+print(f"SEED : {opts.seed}")
 seed_everything(opts.seed)
 
 
