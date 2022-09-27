@@ -11,7 +11,7 @@ from copy import deepcopy
 import pdb
 from torch.utils.data.dataset import TensorDataset
 
-class Strategy: 
+class Strategy:
     def __init__(self, X, Y, idxs_lb, net, handler, args):
         self.X = X
         self.Y = Y
@@ -82,6 +82,8 @@ class Strategy:
 
         epochs_no_improve = 0
         early_stop = False
+
+        print(f"Learning Rate {self.args['lr']}, nPat: {self.nPat}")
 
         while accCurrent < 0.99 and not early_stop:
             

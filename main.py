@@ -15,7 +15,8 @@ import pdb
 from strategy import Strategy
 import random
 from ally import ALLYSampling
-from baselines import BadgeSampling, RandomSampling
+from baselines import BadgeSampling, RandomSampling, EntropySampling, CoreSetSampling, BaitSampling
+import wandb
 
 def seed_everything(seed: int):    
     random.seed(seed)
@@ -72,13 +73,14 @@ parser.add_argument('--nPat', help = 'es epochs before halt cond', type = int, d
 parser.add_argument('--lr_dual', help='number of dual steps', type=float, default=0.05)
 parser.add_argument('--seed', help='seed', type=int, default=1357)
 parser.add_argument('--cluster', help='How to cluster for diversity in primaldual', type = str, default='nocluster')
+parser.add_argument('--projname', help='Project name for wandb', type = str, default='AProjectHasNoName')
 parser.add_argument('--lambdaTestSize', help = 'Size in percentage of test set for lambda net', type = float, default = 0)
 parser.add_argument('--name', help='name for wandb', type=str, default="a run has no name")
+parser.add_argument('--dlr', help='dec lr', type=float, default=0.96)
 opts = parser.parse_args()
 
 print(f"SEED : {opts.seed}")
 seed_everything(opts.seed)
-
 
 # parameters
 NUM_INIT_LB = opts.nStart
@@ -98,6 +100,7 @@ args['seed'] = opts.seed
 args['nClasses'] = opts.nClasses
 args['nPat'] = opts.nPat
 args['alg'] = opts.alg
+args["dlr"] = opts.dlr
 
 
 if not os.path.exists(opts.path):
@@ -134,11 +137,17 @@ if type(X_tr[0]) is not np.ndarray:
     X_tr = X_tr.numpy()
 
 if args["alg"] == "ALLY":
-    alg = ALLYSampling(X_tr, Y_tr, idxs_lb, net, handler, args, opts.epsilon, opts.cluster, opts.lr_dual, opts.nPrimal, opts.lambdaTestSize)                                                            
+    alg = ALLYSampling(X_tr, Y_tr, idxs_lb, net, handler, args, opts.epsilon, opts.cluster, opts.lr_dual, opts.nPrimal, opts.lambdaTestSize, dlr = opts.dlr)                                                            
 elif args["alg"] == "random":
     alg = RandomSampling(X_tr, Y_tr, idxs_lb, net, handler, args)
 elif args["alg"] == "badge":
     alg = BadgeSampling(X_tr, Y_tr, idxs_lb, net, handler, args)
+elif args["alg"] == "bait":
+    alg = BaitSampling(X_tr, Y_tr, idxs_lb, net, handler, args, lamb = 1e-2)
+elif args["alg"] == "entropy":
+    alg = EntropySampling(X_tr, Y_tr, idxs_lb, net, handler, args)
+elif args["alg"] == "coreset":
+    alg = CoreSetSampling(X_tr, Y_tr, idxs_lb, net, handler, args, tor = 1e-4)
 
 print(DATA_NAME, flush=True)
 print(type(alg).__name__, flush=True)

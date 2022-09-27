@@ -18,21 +18,23 @@ from scipy import stats
 from lambdautils import lambdanet, lambdaset
 
 class ALLYSampling(Strategy):
-    def __init__(self, X, Y, idxs_lb, net, handler, args, epsilon = 0.2, cluster = 'kmeans', lr_dual = 0.05, nPrimal = 1, lambda_test_size = 0, nPat = 2):
+    def __init__(self, X, Y, idxs_lb, net, handler, args, epsilon = 0.2, cluster = 'kmeans', lr_dual = 0.05, nPrimal = 1, lambda_test_size = 0, nPat = 2, dlr = 0.98):
         super(ALLYSampling, self).__init__(X, Y, idxs_lb, net, handler, args)
         
-        self.lambdas = np.zeros(sum(self.idxs_lb))
+        #self.lambdas = np.zeros(sum(self.idxs_lb))
+        self.lambdas = np.ones(sum(self.idxs_lb))
  
         self.seed = args["seed"]
         self.nClasses = args["nClasses"]
         self.nPat = nPat
         self.epsilon = epsilon
         self.lr_dual = lr_dual
+        self.dlr = dlr
         self.cluster = cluster
         self.nPrimal = nPrimal # Not used in minimal version with alternate primaldual (nPrimal = 1)
         self.lambda_test_size = lambda_test_size
         self.alg = "ALLY"
-
+                
     def query(self, n):
         idxs_unlabeled = np.arange(self.n_pool)[~self.idxs_lb]
         idxs_lb = np.arange(self.n_pool)[self.idxs_lb]
@@ -197,7 +199,9 @@ class ALLYSampling(Strategy):
         loader_tr = DataLoader(self.handler(self.X[self.idxs_train], torch.Tensor(self.Y.numpy()[self.idxs_train]).long(), transform=self.args['transform']), shuffle=True, **self.args['loader_tr_args'])
 
         # Reset lambdas at beginning of each round
-        self.lambdas = np.zeros(len(self.idxs_train))
+        #self.lambdas = np.zeros(len(self.idxs_train))
+        self.lambdas = np.ones(len(self.idxs_train))
+
 
         epoch = 1
         accCurrent = 0.
@@ -206,8 +210,6 @@ class ALLYSampling(Strategy):
 
         epochs_no_improve = 0
         early_stop = False
-
-        slr = optim.lr_scheduler.StepLR(optimizer, step_size = 1, gamma=0.95) #lr sch for lagrangian
 
         while accCurrent < 0.99 and not early_stop:
             lossCurrent, accCurrent = self._PDCL(epoch, loader_tr, optimizer)
@@ -227,9 +229,12 @@ class ALLYSampling(Strategy):
             
             if epochs_no_improve > self.nPat:
                 early_stop = True
-
-            slr.step()
+            
             print(f"{epoch} training accuracy: {accCurrent:.2f} \tTraining loss: {lossCurrent:.2f} \tValidation acc: {val_acc:.2f}", flush=True)
-            epoch += 1   
+            epoch += 1 
+
+            for g in optimizer.param_groups:
+                g['lr'] *= self.dlr # primal lr
+            self.lr_dual = 0.05*self.dlr/(epoch**(1/16))  #dual lr non-summable diminishing  
 
         self.clf = best_model
