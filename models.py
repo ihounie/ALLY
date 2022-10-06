@@ -9,6 +9,7 @@ Reference:
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import numpy as np
 import pdb
 from torch.autograd import Variable
 
@@ -84,6 +85,7 @@ class ResNet(nn.Module):
         self.layer3 = self._make_layer(block, 64, num_blocks[2], stride=2)
         self.layer4 = self._make_layer(block, 128, num_blocks[3], stride=2)
         self.linear = nn.Linear(128 * block.expansion, num_classes)
+        #self.avgpool = nn.AdaptiveAvgPool2d(1)
     def _make_layer(self, block, planes, num_blocks, stride):
         strides = [stride] + [1]*(num_blocks-1)
         layers = []
@@ -167,7 +169,7 @@ class mlp(nn.Module):
         self.embSize = embSize
         self.dim = int(np.prod(dim))
         self.lm1 = nn.Linear(self.dim, embSize)
-        self.lm2 = nn.Linear(embSize, opts.nClasses)
+        self.lm2 = nn.Linear(embSize, 10) #change in nClasses != 10
     def forward(self, x):
         x = x.view(-1, self.dim)
         emb = F.relu(self.lm1(x))

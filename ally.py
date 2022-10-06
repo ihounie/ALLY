@@ -18,10 +18,10 @@ from scipy import stats
 from lambdautils import lambdanet, lambdaset
 
 class ALLYSampling(Strategy):
-    def __init__(self, X, Y, idxs_lb, net, handler, args, epsilon = 0.2, cluster = 'kmeans', lr_dual = 0.05, nPrimal = 1, lambda_test_size = 0, nPat = 2, dlr = 0.98):
+    def __init__(self, X, Y, idxs_lb, net, handler, args, epsilon = 0.2, cluster = 'kmeans', lr_dual = 0.05, nPrimal = 1, lambda_test_size = 0, nPat = 2, dlr = 0.97):
         super(ALLYSampling, self).__init__(X, Y, idxs_lb, net, handler, args)
         
-        #self.lambdas = np.zeros(sum(self.idxs_lb))
+        #self.lambdas = np.zeros(sum(self.idxs_lb)) 
         self.lambdas = np.ones(sum(self.idxs_lb))
  
         self.seed = args["seed"]
@@ -58,7 +58,7 @@ class ALLYSampling(Strategy):
         # Select samples with highest predicted lambda from each cluster
         if self.cluster == "kmeans":
             # MiniBatch K-means on embeddings
-            print("Clustering....")
+            print("Clustering ....")
             nClusters = n
             kmeans = MiniBatchKMeans(n_clusters = nClusters, random_state = self.seed, batch_size=1024)
             cluster_idxs = kmeans.fit_predict(X_embedding)

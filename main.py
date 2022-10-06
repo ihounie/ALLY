@@ -10,6 +10,7 @@ from sklearn.preprocessing import LabelEncoder
 import torch.nn.functional as F
 from torch import nn
 from torchvision import transforms
+import torchvision.models as torchvision_models
 import torch
 import pdb
 from strategy import Strategy
@@ -53,6 +54,12 @@ args_pool = {
                  'transform': transforms.Compose([transforms.ToTensor()]), #  if unnormalized add: transforms.Normalize(mean=[114.06, 112.23, 103.62], std=[66.40, 65.411, 68.98])]),
                  'loader_tr_args':{'batch_size': 64, 'num_workers': 3},
                  'loader_te_args':{'batch_size': 1000, 'num_workers': 3}
+                },
+            'TINY_IMAGENET':
+                {
+                 'transform': transforms.Compose([transforms.ToTensor(), transforms.Normalize([0.485, 0.456, 0.406],[0.229, 0.224, 0.225])]),
+                 'loader_tr_args':{'batch_size': 64, 'num_workers': 3},
+                 'loader_te_args':{'batch_size': 1000, 'num_workers': 3}
                 }
             }
 
@@ -76,7 +83,8 @@ parser.add_argument('--cluster', help='How to cluster for diversity in primaldua
 parser.add_argument('--projname', help='Project name for wandb', type = str, default='AProjectHasNoName')
 parser.add_argument('--lambdaTestSize', help = 'Size in percentage of test set for lambda net', type = float, default = 0)
 parser.add_argument('--name', help='name for wandb', type=str, default="a run has no name")
-parser.add_argument('--dlr', help='dec lr', type=float, default=0.96)
+parser.add_argument('--dlr', help='dec lr', type=float, default=0.97)
+parser.add_argument('--redund', help='redundancy in stl', type=int, default=0)
 opts = parser.parse_args()
 
 print(f"SEED : {opts.seed}")
@@ -93,6 +101,8 @@ args_pool['MNIST']['transformTest'] = args_pool['MNIST']['transform']
 args_pool['SVHN']['transformTest'] = args_pool['SVHN']['transform']
 args_pool['CIFAR10']['transformTest'] = args_pool['CIFAR10']['transform']
 args_pool['STL10']['transformTest'] = args_pool['STL10']['transform']
+args_pool['TINY_IMAGENET']['transformTest'] = args_pool['TINY_IMAGENET']['transform']
+
 args = args_pool[DATA_NAME]
 args['lr'] = opts.lr
 args['nPrimal'] = opts.nPrimal
@@ -101,12 +111,14 @@ args['nClasses'] = opts.nClasses
 args['nPat'] = opts.nPat
 args['alg'] = opts.alg
 args["dlr"] = opts.dlr
+args["redund"] = opts.redund
 
 
 if not os.path.exists(opts.path):
     os.makedirs(opts.path)
 
-X_tr, Y_tr, X_te, Y_te = get_dataset(DATA_NAME, opts.path)
+print(opts.redund)
+X_tr, Y_tr, X_te, Y_te = get_dataset(DATA_NAME, opts.path, opts.redund)
 opts.dim = np.shape(X_tr)[1:]
 handler = get_handler(opts.data)
 
@@ -126,10 +138,14 @@ idxs_lb[idxs_tmp[:NUM_INIT_LB]] = True
 if opts.model == 'mlp':
     net = models.mlp(opts.dim, embSize=opts.nEmb)
 elif opts.model == 'resnet':
-    if opts.data != "STL10":
-        net = models.ResNet18()
+    if opts.data == "STL10":
+        net = models.ResNet9() 
+    elif opts.data == 'TINY_IMAGENET':
+        net = torchvision_models.resnet18() 
+        net.avgpool = nn.AdaptiveAvgPool2d(1)
+        net.fc.out_features = 200
     else:
-        net = models.ResNet9()
+        net = models.ResNet18()
 else: 
     raise ValueError
 
@@ -137,15 +153,9 @@ if type(X_tr[0]) is not np.ndarray:
     X_tr = X_tr.numpy()
 
 if args["alg"] == "ALLY":
-    alg = ALLYSampling(X_tr, Y_tr, idxs_lb, net, handler, args, opts.epsilon, opts.cluster, opts.lr_dual, opts.nPrimal, opts.lambdaTestSize, dlr = opts.dlr)                                                            
+    alg = ALLYSampling(X_tr, Y_tr, idxs_lb, net, handler, args, opts.epsilon, opts.cluster, opts.lr_dual, opts.nPrimal, opts.lambdaTestSize, dlr = args["dlr"])                                                            
 elif args["alg"] == "random":
     alg = RandomSampling(X_tr, Y_tr, idxs_lb, net, handler, args)
-elif args["alg"] == "badge":
-    alg = BadgeSampling(X_tr, Y_tr, idxs_lb, net, handler, args)
-elif args["alg"] == "bait":
-    alg = BaitSampling(X_tr, Y_tr, idxs_lb, net, handler, args, lamb = 1e-2)
-elif args["alg"] == "entropy":
-    alg = EntropySampling(X_tr, Y_tr, idxs_lb, net, handler, args)
 elif args["alg"] == "coreset":
     alg = CoreSetSampling(X_tr, Y_tr, idxs_lb, net, handler, args, tor = 1e-4)
 
@@ -186,10 +196,13 @@ for rd in range(1, NUM_ROUND+1):
     loss[rd] = F.cross_entropy(probs, Y_te).item()
     print(f"\n\nNumber of samples = {sum(idxs_lb)} ------> testing accuracy: {acc[rd]} , loss: {loss[rd]} \n\n", flush=True)
     nsamples = NUM_INIT_LB + rd*NUM_QUERY
+    wandb.log({"test_loss": loss[rd], "test_acc": acc[rd], "nsamples": nsamples, "step": rd})
 
     if sum(~alg.idxs_lb) < opts.nQuery: 
         sys.exit('Too few remaining points to query')
 
 print(f"\nAccuracy evolution: {acc}")
 print(f"\nCross Entropy evolution: {loss}")
+wandb.log({"all_losses": loss, "all_accs": acc})
+
 

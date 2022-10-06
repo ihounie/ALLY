@@ -170,28 +170,3 @@ class Strategy:
         
         return embedding
     
-    # gradient embedding for badge (assumes cross-entropy loss)
-    def get_grad_embedding(self, X, Y, model=[]):
-        if type(model) == list:
-            model = self.clf
-        
-        embDim = model.get_embedding_dim()
-        model.eval()
-        nLab = len(np.unique(Y))
-        embedding = np.zeros([len(Y), embDim * nLab])
-        loader_te = DataLoader(self.handler(X, Y, transform=self.args['transformTest']),
-                            shuffle=False, **self.args['loader_te_args'])
-        with torch.no_grad():
-            for x, y, idxs in loader_te:
-                x, y = Variable(x.cuda()), Variable(y.cuda())
-                cout, out = model(x)
-                out = out.data.cpu().numpy()
-                batchProbs = F.softmax(cout, dim=1).data.cpu().numpy()
-                maxInds = np.argmax(batchProbs,1)
-                for j in range(len(y)):
-                    for c in range(nLab):
-                        if c == maxInds[j]:
-                            embedding[idxs[j]][embDim * c : embDim * (c+1)] = deepcopy(out[j]) * (1 - batchProbs[j][c])
-                        else:
-                            embedding[idxs[j]][embDim * c : embDim * (c+1)] = deepcopy(out[j]) * (-1 * batchProbs[j][c])
-            return torch.Tensor(embedding)
