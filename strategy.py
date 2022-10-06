@@ -73,7 +73,8 @@ class Strategy:
         loader_tr = DataLoader(self.handler(self.X[self.idxs_train], torch.Tensor(self.Y.numpy()[self.idxs_train]).long(), transform=self.args['transform']), shuffle=True, **self.args['loader_tr_args'])
 
         # Reset lambdas at beginning of each round
-        self.lambdas = np.zeros(len(self.idxs_train))
+        #self.lambdas = np.zeros(len(self.idxs_train))
+        self.lambdas = np.ones(len(self.idxs_train))
 
         epoch = 1
         accCurrent = 0.
