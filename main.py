@@ -16,8 +16,7 @@ import pdb
 from strategy import Strategy
 import random
 from ally import ALLYSampling
-from baselines import BadgeSampling, RandomSampling, EntropySampling, CoreSetSampling, BaitSampling
-import wandb
+from baselines import RandomSampling, CoreSetSampling
 
 def seed_everything(seed: int):    
     random.seed(seed)
@@ -153,7 +152,7 @@ if type(X_tr[0]) is not np.ndarray:
     X_tr = X_tr.numpy()
 
 if args["alg"] == "ALLY":
-    alg = ALLYSampling(X_tr, Y_tr, idxs_lb, net, handler, args, opts.epsilon, opts.cluster, opts.lr_dual, opts.nPrimal, opts.lambdaTestSize, dlr = args["dlr"])                                                            
+    alg = ALLYSampling(X_tr, Y_tr, idxs_lb, net, handler, args, opts.epsilon, opts.cluster, opts.lr_dual, opts.nPrimal, opts.lambdaTestSize)                                                            
 elif args["alg"] == "random":
     alg = RandomSampling(X_tr, Y_tr, idxs_lb, net, handler, args)
 elif args["alg"] == "coreset":
@@ -196,13 +195,11 @@ for rd in range(1, NUM_ROUND+1):
     loss[rd] = F.cross_entropy(probs, Y_te).item()
     print(f"\n\nNumber of samples = {sum(idxs_lb)} ------> testing accuracy: {acc[rd]} , loss: {loss[rd]} \n\n", flush=True)
     nsamples = NUM_INIT_LB + rd*NUM_QUERY
-    wandb.log({"test_loss": loss[rd], "test_acc": acc[rd], "nsamples": nsamples, "step": rd})
 
     if sum(~alg.idxs_lb) < opts.nQuery: 
         sys.exit('Too few remaining points to query')
 
 print(f"\nAccuracy evolution: {acc}")
 print(f"\nCross Entropy evolution: {loss}")
-wandb.log({"all_losses": loss, "all_accs": acc})
 
 
